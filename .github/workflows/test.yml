@@ -1,0 +1,55 @@
+name: Run Tests
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hackathon_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        env:
+          DATABASE_NAME: hackathon_db
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+        run: uv run pytest tests/ -v --tb=short
+
+      - name: Coverage report (must be 50%+)
+        env:
+          DATABASE_NAME: hackathon_db
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+        run: uv run pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=50

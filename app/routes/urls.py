@@ -9,7 +9,7 @@ urls_bp = Blueprint("urls", __name__)
 
 @urls_bp.route("/shorten", methods=["POST"])
 def shorten_url():
-    data = request.get_json()
+    data = request.get_json(silent=True, force=True)
 
     if not data or "url" not in data:
         return jsonify({"error": "Missing 'url' field in request body"}), 400
