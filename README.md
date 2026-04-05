@@ -117,18 +117,15 @@ uv run pytest tests/ --cov=app --cov-report=term-missing
 
 ## Architecture
 
-```
-Client (browser / curl)
-        │
-        ▼
-  Flask App (port 8080)
-        │
-        ▼
-  Peewee ORM
-        │
-        ▼
-  PostgreSQL Database
-```
+<img src="docs/system-architecture.png" width="600" alt="System Architecture"/>
+
+### API Request Flow
+
+<img src="docs/api-request-flow.png" width="600" alt="API Request Flow"/>
+
+### CI/CD Pipeline & Chaos Engineering
+
+<img src="docs/ci-cd-pipeline.png" width="600" alt="CI/CD Pipeline"/>
 
 ---
 
