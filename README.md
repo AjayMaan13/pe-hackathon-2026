@@ -161,6 +161,12 @@ pe-hackathon-2026/
 
 ---
 
+## Troubleshooting
+
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
+---
+
 ## Reliability Features
 
 - **Health endpoint** — `GET /health` always returns 200 if the service is up
