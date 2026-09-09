@@ -110,12 +110,32 @@ answer to "why not async all the way."
   and deliberately does not auto-restart) recovered in ~0.22s, comfortably
   inside the "2-5 seconds" claim in `docs/FAILURE_MODES.md`.
 
-- [ ] **Phase 7 — Measure, then update docs**
-  Capture a real before/after number for Redis (latency or DB query count on
-  repeat reads — measured, not estimated) to use as the actual metric.
-  Update `README.md` (stack line, setup steps, new env vars), and
-  `docs/ERROR_HANDLING.md` / `docs/FAILURE_MODES.md` if FastAPI's exception
-  handling changed any behavior from what's documented today.
+- [x] **Phase 7 — Measure, then update docs**
+  Measured `GET /<code>` against the live `docker compose` stack (Postgres +
+  Redis + FastAPI, 50 requests each, Redis `FLUSHALL`'d before every cold
+  request to force a genuine Postgres round trip): **median ~12ms
+  Postgres-only vs ~3.5ms on a Redis hit — about 3.4x faster**, and a hit
+  issues zero Postgres queries (already enforced by a Phase 5 test). Two
+  runs landed within ~1ms of each other; noted the range rather than a single
+  cherry-picked number.
+
+  Updated `README.md` (stack line, prerequisites, run commands now use
+  `uvicorn`/`run_fastapi.py`, env var table, project structure — Flask files
+  marked legacy/pending Phase 8 removal, not deleted from the docs since
+  they're still in the repo — reliability features section with the
+  measured Redis numbers).
+
+  Updated `docs/ERROR_HANDLING.md`: split the 500 case into short-code
+  collision vs. any other unhandled error, since FastAPI's generic exception
+  handler now makes the "always JSON, never a stack trace" claim actually
+  true for genuinely unexpected errors — the original Flask app never had
+  a handler enforcing that for the general case, only for the specific
+  branches it wrote itself.
+
+  Updated `docs/FAILURE_MODES.md`: added a Redis Cache Failure section, noted
+  that a cached code survives a Postgres outage, and replaced the "2-5
+  seconds" crash-recovery estimate with the measured ~0.22s from Phase 6's
+  in-container-kill test (kept as an observed floor, not a new guarantee).
 
 - [ ] **Phase 8 — Remove Flask**
   Once Phases 2–7 are done and the full suite is green on FastAPI alone,
