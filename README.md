@@ -126,15 +126,62 @@ uv run pytest tests/ --cov=app --cov-report=term-missing
 
 ## Architecture
 
-<img src="docs/system-architecture.png" width="600" alt="System Architecture"/>
+```mermaid
+graph TB
+    client(["Client"])
 
-### API Request Flow
+    subgraph compose["docker compose"]
+        app["FastAPI app<br/>(uvicorn, :8080)"]
+        redis[("Redis<br/>short_code → url, TTL")]
+        pg[("PostgreSQL<br/>via Peewee ORM")]
+    end
 
-<img src="docs/api-request-flow.png" width="600" alt="API Request Flow"/>
+    client -->|"HTTP"| app
+    app -->|"GET /&lt;code&gt;<br/>cache read-through"| redis
+    redis -.->|"miss → fall back"| pg
+    app -->|"POST /shorten, GET /urls<br/>(always)"| pg
+```
 
-### CI/CD Pipeline & Chaos Engineering
+### API Request Flow — `GET /<code>`
 
-<img src="docs/ci-cd-pipeline.png" width="600" alt="CI/CD Pipeline"/>
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as FastAPI
+    participant R as Redis
+    participant P as Postgres
+
+    C->>A: GET /{code}
+    A->>R: GET url:{code}
+    alt cache hit
+        R-->>A: original_url
+        A-->>C: 302 Location: original_url
+    else cache miss (or Redis down)
+        R-->>A: nil / error (treated as miss)
+        A->>P: SELECT ... WHERE short_code = {code}
+        alt found
+            P-->>A: row
+            A->>R: SET url:{code} (TTL, best-effort)
+            A-->>C: 302 Location: original_url
+        else not found
+            P-->>A: DoesNotExist
+            A-->>C: 404 {"error": "Short code '{code}' not found"}
+        end
+    end
+```
+
+### CI Pipeline
+
+```mermaid
+flowchart LR
+    push["git push / PR"] --> ci["GitHub Actions"]
+    ci --> svc["start Postgres + Redis<br/>service containers"]
+    svc --> tests["uv run pytest"]
+    tests -->|fail| red["❌ CI fails"]
+    tests -->|pass| cov["coverage gate<br/>(fail under 50%)"]
+    cov -->|below threshold| red
+    cov -->|pass| green["✅ CI green"]
+```
 
 ---
 
@@ -143,35 +190,30 @@ uv run pytest tests/ --cov=app --cov-report=term-missing
 ```
 pe-hackathon-2026/
 ├── app/
-│   ├── fastapi_app.py       # FastAPI app factory (current entry point)
+│   ├── fastapi_app.py       # FastAPI app factory + entry point
 │   ├── api/
 │   │   └── routes.py        # All 4 endpoints
 │   ├── schemas.py           # Pydantic request/response models
 │   ├── cache.py             # Redis read-through cache for GET /<code>
 │   ├── database.py          # Peewee/Postgres connection wiring
-│   ├── models/
-│   │   └── url.py           # URL model + short code generator
-│   ├── __init__.py          # Flask app factory (legacy, mid-migration — see docs/MIGRATION_PLAN.md)
-│   └── routes/
-│       └── urls.py          # Flask blueprint (legacy, mid-migration)
+│   └── models/
+│       └── url.py           # URL model + short code generator
 ├── tests/
-│   ├── conftest.py          # pytest fixtures (Flask + FastAPI clients)
-│   ├── test_fastapi_*.py    # FastAPI endpoint + cache integration tests
+│   ├── conftest.py          # pytest fixtures
+│   ├── test_fastapi_*.py    # Endpoint + cache integration tests
 │   ├── test_cache.py        # Redis cache module unit tests
-│   ├── test_schemas.py      # Pydantic schema tests
-│   └── test_urls.py         # Legacy Flask endpoint tests
+│   └── test_schemas.py      # Pydantic schema tests
 ├── docs/
-│   ├── MIGRATION_PLAN.md    # Flask -> FastAPI + Redis migration, phase by phase
+│   ├── MIGRATION_PLAN.md    # Flask -> FastAPI + Redis migration history, phase by phase
 │   ├── ERROR_HANDLING.md    # Error codes and response formats
 │   └── FAILURE_MODES.md     # What happens when things break
 ├── .github/workflows/
 │   └── test.yml             # CI — runs tests + coverage on every push
-├── Dockerfile              # Container definition (runs the FastAPI app via uvicorn)
+├── Dockerfile              # Container definition (runs the app via uvicorn)
 ├── docker-compose.yml      # App + Postgres + Redis, all with auto-restart
 ├── .dockerignore
 ├── setup_db.py             # One-time table creation script
-├── run_fastapi.py          # FastAPI entry point (uvicorn)
-└── run.py                  # Flask entry point (legacy, mid-migration)
+└── run_fastapi.py          # Entry point (uvicorn)
 ```
 
 ---
@@ -186,8 +228,8 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 - **Health endpoint** — `GET /health` always returns 200 if the service is up
 - **Input validation** — rejects malformed URLs with a 400 JSON error, never crashes
-- **54 automated tests** — unit + integration coverage across all endpoints and the cache layer
-- **97%+ test coverage** — measured with pytest-cov, enforced in CI
+- **31 automated tests** — unit + integration coverage across all endpoints and the cache layer
+- **98%+ test coverage** — measured with pytest-cov, enforced in CI
 - **GitHub Actions CI** — tests run on every push (Postgres + Redis services), fails if coverage drops below 50%
 - **Docker restart policy** — `restart: always` auto-recovers from crashes in ~0.2-5 seconds (measured against the live container, not just the failure-mode doc's estimate)
 - **Graceful errors** — all errors return JSON, no stack traces exposed to users

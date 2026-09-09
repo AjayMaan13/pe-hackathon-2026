@@ -1,9 +1,9 @@
-from app import create_app
-from app.database import db
+from dotenv import load_dotenv
+
+from app.database import db, init_peewee_db
 from app.models.url import URL
 
-app = create_app()
-
-with app.app_context():
-    db.create_tables([URL])
-    print("✅ Tables created successfully")
+load_dotenv()
+init_peewee_db()
+db.create_tables([URL])
+print("✅ Tables created successfully")

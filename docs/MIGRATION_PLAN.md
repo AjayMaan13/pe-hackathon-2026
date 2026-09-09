@@ -1,13 +1,14 @@
 # FastAPI + Redis Migration Plan
 
+**Status: complete** — all 8 phases below have landed.
+
 Tracks the migration of the URL shortener from Flask to FastAPI, plus a Redis
 caching layer in front of the redirect lookup. Scoped for the MLH Production
 Engineering Hackathon 2026 (Reliability Engineering track).
 
-Each phase below lands as its own commit (sometimes a couple of small
-commits) so the history stays reviewable and bisectable. Flask stays live and
-serving traffic until Phase 7 confirms full parity — nothing gets deleted
-early.
+Each phase below landed as its own commit (sometimes a couple of small
+commits) so the history stays reviewable and bisectable. Flask stayed live
+and serving traffic until Phase 8 removed it — nothing was deleted early.
 
 DB access strategy: keep Peewee's synchronous calls as-is and let FastAPI run
 route handlers in its threadpool (the default for `def`, not `async def`,
@@ -137,12 +138,25 @@ answer to "why not async all the way."
   seconds" crash-recovery estimate with the measured ~0.22s from Phase 6's
   in-container-kill test (kept as an observed floor, not a new guarantee).
 
-- [ ] **Phase 8 — Remove Flask**
-  Once Phases 2–7 are done and the full suite is green on FastAPI alone,
-  delete `app/__init__.py`'s Flask factory, `app/routes/`, `run.py`, and the
-  Flask/Peewee-via-Flask-hooks glue in `app/database.py` that only Flask
-  used. Update `pyproject.toml` to drop the `flask` dependency and the
-  Dockerfile `CMD`.
+- [x] **Phase 8 — Remove Flask**
+  Deleted `app/routes/` (Flask blueprint), `run.py`, and `tests/test_urls.py`
+  (fully superseded by the `test_fastapi_*` files, which mirror every case
+  1:1). Emptied `app/__init__.py` (was the Flask factory — `app` stays a
+  plain package now). Removed the Flask-only `init_db(app)` from
+  `app/database.py`, keeping `init_peewee_db()`/`db_session()` which FastAPI
+  already used on its own. Rewrote `setup_db.py` and `tests/conftest.py`'s
+  `setup_db` fixture to call `init_peewee_db()` directly instead of going
+  through a Flask app context. Ran `uv remove flask` (also drops
+  blinker/itsdangerous/jinja2/markupsafe/werkzeug, which nothing else used).
+  Dropped the now-orphaned `FLASK_DEBUG` from `.env.example`. The
+  Dockerfile `CMD` was already on uvicorn since Phase 6, so nothing to
+  change there.
+
+  Verified: 31 tests pass (down from 54 — the 23 ported Flask tests are
+  gone, nothing lost), coverage actually *rose* to 98.66% (dead Flask code
+  no longer drags the denominator). Rebuilt and re-ran the full
+  `docker compose up --build` stack with Flask fully gone — health,
+  shorten, redirect, and list all verified working end to end.
 
 ## Non-goals (unchanged from the brief)
 

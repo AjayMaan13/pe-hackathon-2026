@@ -23,21 +23,8 @@ def _build_database():
 
 def init_peewee_db():
     """Initialize the shared Peewee DatabaseProxy. Safe to call once at
-    startup by any web framework wiring this app together."""
+    app startup."""
     db.initialize(_build_database())
-
-
-def init_db(app):
-    init_peewee_db()
-
-    @app.before_request
-    def _db_connect():
-        db.connect(reuse_if_open=True)
-
-    @app.teardown_appcontext
-    def _db_close(exc):
-        if not db.is_closed():
-            db.close()
 
 
 @contextmanager
