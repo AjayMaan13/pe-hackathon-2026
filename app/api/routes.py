@@ -4,7 +4,7 @@ from peewee import IntegrityError
 
 from app.database import db_session
 from app.models.url import URL, generate_short_code
-from app.schemas import ShortenRequest, ShortenResponse
+from app.schemas import ShortenRequest, ShortenResponse, URLOut
 
 router = APIRouter()
 
@@ -33,6 +33,21 @@ def shorten_url(payload: ShortenRequest, request: Request):
             status_code=500,
             content={"error": "Could not generate unique code, try again"},
         )
+
+
+@router.get("/urls", response_model=list[URLOut])
+def list_urls():
+    with db_session():
+        urls = URL.select().order_by(URL.created_at.desc())
+        return [
+            URLOut(
+                id=u.id,
+                original_url=u.original_url,
+                short_code=u.short_code,
+                created_at=u.created_at,
+            )
+            for u in urls
+        ]
 
 
 # Catch-all path param: unlike Flask, FastAPI/Starlette matches routes in

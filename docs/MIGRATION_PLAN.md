@@ -52,9 +52,14 @@ answer to "why not async all the way."
   static route (`/urls` in Phase 4) in `app/api/routes.py` or it will shadow
   them.
 
-- [ ] **Phase 4 — Port `GET /urls`**
-  Port the list endpoint and its tests. At this point all 4 endpoints exist on
-  FastAPI with passing tests and the coverage gate intact.
+- [x] **Phase 4 — Port `GET /urls`**
+  Ported the list endpoint (`URLOut` response model) and its tests, plus a new
+  parity test asserting the row shape and `created_at` format are
+  byte-identical to Flask's `jsonify()` output (RFC 1123 date string, not
+  Pydantic's default ISO 8601 — handled with a `field_serializer`). Declared
+  above `/{code}` per the Phase 3 note, and verified against a real `uvicorn`
+  server that it isn't shadowed. All 4 endpoints now exist on FastAPI with
+  passing tests and the coverage gate intact (97.28%, 46 tests).
 
 - [ ] **Phase 5 — Redis caching layer**
   `app/cache.py`: short_code → original_url cache with a TTL, sitting in front
