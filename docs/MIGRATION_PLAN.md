@@ -41,10 +41,16 @@ answer to "why not async all the way."
   `db_session()`, a context manager entered inside each DB-touching route
   function so connect/close always happen on the same thread as the query.
 
-- [ ] **Phase 3 — Port `GET /<code>` (redirect)**
-  Port the redirect lookup and its tests. No Redis yet — this phase is Postgres
-  only, to keep the FastAPI parity change and the caching change reviewable
-  separately.
+- [x] **Phase 3 — Port `GET /<code>` (redirect)**
+  Ported the redirect lookup (`RedirectResponse`, 302, same `Location` header
+  behavior) and its 4 tests. No Redis yet — this phase is Postgres only, to
+  keep the FastAPI parity change and the caching change reviewable separately.
+
+  Note for future phases: FastAPI/Starlette matches routes in declaration
+  order rather than always preferring static routes over dynamic ones like
+  Flask does — `/{code}` is a catch-all and must stay declared *below* every
+  static route (`/urls` in Phase 4) in `app/api/routes.py` or it will shadow
+  them.
 
 - [ ] **Phase 4 — Port `GET /urls`**
   Port the list endpoint and its tests. At this point all 4 endpoints exist on

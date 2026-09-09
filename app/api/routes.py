@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from peewee import IntegrityError
 
 from app.database import db_session
@@ -33,3 +33,18 @@ def shorten_url(payload: ShortenRequest, request: Request):
             status_code=500,
             content={"error": "Could not generate unique code, try again"},
         )
+
+
+# Catch-all path param: unlike Flask, FastAPI/Starlette matches routes in
+# declaration order rather than always preferring static routes, so this
+# must stay declared below every static route (e.g. /urls) or it will
+# shadow them.
+@router.get("/{code}")
+def redirect_to_url(code: str):
+    with db_session():
+        try:
+            url_record = URL.get(URL.short_code == code)
+        except URL.DoesNotExist:
+            return JSONResponse(status_code=404, content={"error": f"Short code '{code}' not found"})
+
+        return RedirectResponse(url=url_record.original_url, status_code=302)
