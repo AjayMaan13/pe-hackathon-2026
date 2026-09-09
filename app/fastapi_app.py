@@ -24,18 +24,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="URL Shortener", lifespan=_lifespan)
 
-    @app.middleware("http")
-    async def _peewee_connection(request: Request, call_next):
-        db.connect(reuse_if_open=True)
-        try:
-            return await call_next(request)
-        finally:
-            if not db.is_closed():
-                db.close()
-
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(status_code=400, content={"error": "Invalid request body"})
+        errors = exc.errors()
+        custom_error = errors[0].get("ctx", {}).get("error") if errors else None
+        message = str(custom_error) if custom_error is not None else "Missing 'url' field in request body"
+        return JSONResponse(status_code=400, content={"error": message})
 
     @app.exception_handler(Exception)
     async def _unhandled_error_handler(request: Request, exc: Exception):

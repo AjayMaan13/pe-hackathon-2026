@@ -25,11 +25,21 @@ answer to "why not async all the way."
   first FastAPI test using `TestClient`. Flask is untouched and still the
   app `docker-compose.yml` / CI run.
 
-- [ ] **Phase 2 — Port `POST /shorten`**
-  Move short-code creation to FastAPI using `ShortenRequest`/`ShortenResponse`
-  for validation instead of the manual checks in `app/routes/urls.py`. Port
-  the matching `TestShortenEndpoint` cases against the FastAPI `TestClient`.
-  Same status codes and error JSON shape as today.
+- [x] **Phase 2 — Port `POST /shorten`**
+  Moved short-code creation to FastAPI using `ShortenRequest`/`ShortenResponse`
+  — a `field_validator` on `ShortenRequest.url` replaces the manual empty/protocol
+  checks, and the app-level `RequestValidationError` handler surfaces that
+  validator's message so the JSON error text is byte-identical to Flask's
+  (verified against every case in `docs/ERROR_HANDLING.md`). Ported all 9
+  `TestShortenEndpoint` cases plus a new test for the unhandled-exception path
+  (500, JSON, no stack trace — matches `docs/FAILURE_MODES.md`).
+
+  Also fixed a real bug from Phase 1: the ASGI-level DB connect/close
+  middleware was a no-op for real queries, because Peewee's connection state
+  is thread-local and FastAPI's threadpool doesn't guarantee a request's
+  middleware and its sync route body share a thread. Replaced it with
+  `db_session()`, a context manager entered inside each DB-touching route
+  function so connect/close always happen on the same thread as the query.
 
 - [ ] **Phase 3 — Port `GET /<code>` (redirect)**
   Port the redirect lookup and its tests. No Redis yet — this phase is Postgres
