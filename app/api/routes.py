@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from peewee import IntegrityError
 
+from app.cache import get_cached_url, set_cached_url
 from app.database import db_session
 from app.models.url import URL, generate_short_code
 from app.schemas import ShortenRequest, ShortenResponse, URLOut
@@ -21,6 +22,7 @@ def shorten_url(payload: ShortenRequest, request: Request):
             short_code = generate_short_code()
             try:
                 url_record = URL.create(original_url=payload.url, short_code=short_code)
+                set_cached_url(url_record.short_code, url_record.original_url)
                 return ShortenResponse(
                     short_code=url_record.short_code,
                     short_url=f"{request.base_url}{url_record.short_code}",
@@ -56,10 +58,15 @@ def list_urls():
 # shadow them.
 @router.get("/{code}")
 def redirect_to_url(code: str):
+    cached_url = get_cached_url(code)
+    if cached_url is not None:
+        return RedirectResponse(url=cached_url, status_code=302)
+
     with db_session():
         try:
             url_record = URL.get(URL.short_code == code)
         except URL.DoesNotExist:
             return JSONResponse(status_code=404, content={"error": f"Short code '{code}' not found"})
 
-        return RedirectResponse(url=url_record.original_url, status_code=302)
+    set_cached_url(url_record.short_code, url_record.original_url)
+    return RedirectResponse(url=url_record.original_url, status_code=302)

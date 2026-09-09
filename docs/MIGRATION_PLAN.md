@@ -61,13 +61,27 @@ answer to "why not async all the way."
   server that it isn't shadowed. All 4 endpoints now exist on FastAPI with
   passing tests and the coverage gate intact (97.28%, 46 tests).
 
-- [ ] **Phase 5 — Redis caching layer**
-  `app/cache.py`: short_code → original_url cache with a TTL, sitting in front
-  of the `GET /<code>` Postgres lookup from Phase 3. Cache is written/updated
-  on `POST /shorten` and on cache miss. Redis failures fall back to Postgres
-  rather than erroring the request (cache is an optimization, not a dependency
-  the redirect path can't survive without). New tests cover hit, miss, and
-  Redis-down fallback.
+- [x] **Phase 5 — Redis caching layer**
+  `app/cache.py`: short_code → original_url cache (`REDIS_TTL_SECONDS`,
+  default 3600s) sitting in front of the `GET /<code>` Postgres lookup from
+  Phase 3. Cache is written on `POST /shorten` and warmed on a Postgres
+  fallback after a cache miss. Redis errors are caught and treated as a miss
+  — the redirect path falls back to Postgres rather than erroring.
+
+  Caught a real production-latency bug while testing this against a genuinely
+  down Redis: redis-py retries on connection failure by default, which turned
+  every failed lookup into a ~4.2s stall instead of a fast fallback — enough
+  to make an outage worse than no cache at all. Fixed by disabling retries
+  (`Retry(NoBackoff(), 0)`, `retry_on_error=[]`) with tight connect/socket
+  timeouts (0.5s); confirmed the same failure now resolves in ~3ms.
+
+  New tests: 4 unit tests on the cache module (hit, miss, Redis-down get,
+  Redis-down set) + 4 integration tests (shorten warms the cache; a cache hit
+  never touches Postgres — enforced by monkeypatching `URL.get` to fail the
+  test if called; a cache miss falls back to Postgres and warms the cache;
+  a redirect survives Redis being fully down). Also added a `redis` service
+  to `.github/workflows/test.yml` so CI can run these — the docker-compose
+  service for local/prod still lands in Phase 6.
 
 - [ ] **Phase 6 — Infra: docker-compose, env, Dockerfile**
   Add a `redis` service to `docker-compose.yml` (`restart: always`, matching
