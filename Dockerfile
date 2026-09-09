@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["uv", "run", "run.py"]
+CMD ["uv", "run", "uvicorn", "run_fastapi:app", "--host", "0.0.0.0", "--port", "8080"]

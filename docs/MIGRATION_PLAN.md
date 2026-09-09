@@ -83,10 +83,32 @@ answer to "why not async all the way."
   to `.github/workflows/test.yml` so CI can run these — the docker-compose
   service for local/prod still lands in Phase 6.
 
-- [ ] **Phase 6 — Infra: docker-compose, env, Dockerfile**
-  Add a `redis` service to `docker-compose.yml` (`restart: always`, matching
-  the existing policy), add `REDIS_HOST`/`REDIS_PORT`/`REDIS_TTL_SECONDS` to
-  `.env.example`, switch the app container's run command to uvicorn.
+- [x] **Phase 6 — Infra: docker-compose, env, Dockerfile**
+  Added a `redis` service to `docker-compose.yml` (`restart: always`),
+  `REDIS_HOST`/`REDIS_PORT`/`REDIS_TTL_SECONDS` to `.env.example`, and
+  switched the app container's `CMD` to uvicorn (`run_fastapi:app`). Also
+  dropped the obsolete `version:` key.
+
+  Verified by actually bringing up `docker compose up --build` (Postgres +
+  Redis + app) and exercising all 4 endpoints through the container network,
+  including confirming the redirect's cache key lands in the `redis`
+  container itself.
+
+  Two real bugs turned up during that verification, both fixed:
+  - No `.dockerignore` existed, so `COPY . .` overwrote the container's
+    freshly-built Linux `.venv` with the host's macOS one, forcing `uv` to
+    silently rebuild it (and, worse, see the next bug) on every container
+    *start* instead of once at build time. Added `.dockerignore`.
+  - `.python-version` and `pyproject.toml` both pin Python 3.13, but the
+    Dockerfile's base image was `python:3.12-slim` — a mismatch that made
+    `uv` download a full CPython 3.13 interpreter from the network on every
+    container start. Fixed the base image to `python:3.13-slim`.
+
+  Re-verified `restart: always` actually holds under the FastAPI image:
+  killing the process *inside* the container (simulating a real crash, not
+  `docker kill` from outside — which Docker treats as an intentional stop
+  and deliberately does not auto-restart) recovered in ~0.22s, comfortably
+  inside the "2-5 seconds" claim in `docs/FAILURE_MODES.md`.
 
 - [ ] **Phase 7 — Measure, then update docs**
   Capture a real before/after number for Redis (latency or DB query count on

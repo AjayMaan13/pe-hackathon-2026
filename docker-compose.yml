@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:15
@@ -9,6 +7,10 @@ services:
       POSTGRES_DB: hackathon_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    restart: always
 
   app:
     build: .
@@ -20,8 +22,12 @@ services:
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TTL_SECONDS: 3600
     depends_on:
       - db
+      - redis
     restart: always
 
 volumes:
